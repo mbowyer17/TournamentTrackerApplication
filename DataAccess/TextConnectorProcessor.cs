@@ -1,0 +1,174 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Configuration;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using TrackerLibrary.Models;
+
+// * Load the text file 
+// Convert the text file to List<PrizeModel>
+// Find the max ID
+// Add the new record with the new ID (max + 1)
+// Convert the prizes to a list<string>
+// Save list<string> to the text file 
+
+namespace TrackerLibrary.DataAccess.TextHelpers
+{
+    public static class TextConnectorProcessor
+    {
+        //extension method
+        public static string FullFilePath(this string fileName) // PrizeModels.csv
+        {
+            // C:\data\TournamentTracker\PrizeModels.csv
+            return $"{ ConfigurationManager.AppSettings["filePath"] }\\{ fileName }";
+        }
+
+        // Load the text file 
+        public static List<string> LoadFile(this string file)
+        {
+            // if not exist
+            if (File.Exists(file) == false)
+            {
+                return new List<string>();
+            }
+
+            return File.ReadAllLines(file).ToList();
+        }
+
+        // Convert the text file to List<PrizeModel>
+        public static List<PrizeModel> ConvertToPrizeModels(this List<string> lines)
+        {
+            List<PrizeModel> output = new List<PrizeModel>();
+
+            foreach (string line in lines)
+            {
+                //  split the line on the commer value
+                string[] cols = line.Split(',');
+
+                PrizeModel p = new PrizeModel();
+
+                p.Id = int.Parse(cols[0]);
+                p.PlaceNumber = int.Parse(cols[1]);
+                p.PlaceName = cols[2];
+                p.PrizeAmount = decimal.Parse(cols[3]);
+                p.PrizePercentage = double.Parse(cols[4]);
+
+                output.Add(p);
+            }
+            return output;
+        }
+
+        public static List<PersonModel>ConvertToPersonModels(this List<string> lines)
+        {
+            List<PersonModel> output = new List<PersonModel>();
+
+            foreach (string line in lines)
+            {
+                string[] cols = line.Split(',');
+
+                PersonModel p = new PersonModel();
+                p.Id = int.Parse(cols[0]);
+                p.FirstName = cols[1];
+                p.LastName = cols[2];
+                p.EmailAddress = cols[3];
+                p.TelephoneNumber = cols[4];
+
+                output.Add(p);
+            }
+
+            return output;
+        }
+
+        public static List<TeamModel> ConvertToTeamModels(this List<string> lines, string peopleFileName)
+        {
+            //id, team name,list of ids seperated by the pipe
+            // 3, Tim's team, 1|3|5
+
+            List<TeamModel> output = new List<TeamModel>();
+            List<PersonModel> people = peopleFileName.FullFilePath().LoadFile().ConvertToPersonModels();
+
+            foreach (string line in lines)
+            {
+                string[] cols = line.Split('.');
+
+                TeamModel t = new TeamModel();
+                t.Id = int.Parse(cols[0]);
+                t.TeamName = cols[1];
+
+                // takes the third column and splits using pipe and puts it into an array called personIds
+                string[] personIds = cols[2].Split('|');
+
+                // Lookup for people
+                foreach (string id in personIds)
+                {
+                    //take the list of the people in our text file 
+                    // search for it and 
+                    // filter where the id of the person in the list
+                    // equals the id from right here
+                    t.TeamMembers.Add(people.Where(x => x.Id == int.Parse(id)).First());
+                }
+            }
+            return output;
+        }
+
+        public static void SaveToPrizeFile(this List<PrizeModel> models, string fileName)
+        {
+            List<string> lines = new List<string>();
+
+            foreach (PrizeModel p in models)
+            {
+                lines.Add($"{ p.Id },{ p.PlaceNumber },{ p.PlaceName },{ p.PrizeAmount },{ p.PrizePercentage }");
+            }
+
+            File.WriteAllLines(fileName.FullFilePath(), lines);
+        }
+
+        public static void SaveToPeopleFile(this List<PersonModel> models, string fileName)
+        {
+            List<string> lines = new List<string>();
+
+            // loop through the list of personmodels
+            foreach (PersonModel p in models)
+            {
+                lines.Add($"{ p.Id },{ p.FirstName },{ p.LastName },{ p.EmailAddress },{ p.TelephoneNumber }");
+            }
+
+            File.WriteAllLines(fileName.FullFilePath(), lines);
+        }
+
+        public static void SaveToTeamFile(this List<TeamModel> models, string fileName)
+        {
+            List<string> lines = new List<string>();
+
+            foreach (TeamModel t in models)
+            {
+                lines.Add($"{ t.Id },{ t.TeamName },{ ConvertPeopleListToString(t.TeamMembers) }");
+            }
+            File.WriteAllLines(fileName.FullFilePath(), lines);
+        }
+
+        private static string ConvertPeopleListToString(List<PersonModel> people)
+        {
+            string output = "";
+
+            if (people.Count == 0)
+            {
+                return "";
+            }
+            // 1|2| is printed
+            foreach (PersonModel p in people)
+            {
+                output += $"{ p.Id }|";
+            }
+
+            // takes a piece out of our string and returns the value
+            // used so there is no pipe "|" at end 
+            output = output.Substring(0, output.Length - 1);
+
+            return output;
+        }
+
+    }
+}
